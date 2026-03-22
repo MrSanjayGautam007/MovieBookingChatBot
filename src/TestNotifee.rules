@@ -1,0 +1,57 @@
+Step 1: Get your Project ID
+Go to Firebase Console > Project Settings (⚙️).
+
+Copy the Project ID (e.g., mychat-app-12345).
+
+In Thunder Client, set your URL to:
+https://fcm.googleapis.com/v1/projects/YOUR_PROJECT_ID/messages:send
+
+Step 2: Get your Bearer Token (The "Secret" Key)
+Since v1 is more secure, you can't just copy a key from the console. You need a temporary token.
+
+Go to the Google OAuth2 Playground.
+
+In the "Input your own scopes" box (Step 1), paste this:
+https://www.googleapis.com/auth/firebase.messaging
+
+Click Authorize APIs and log in.
+
+Click Exchange authorization code for tokens (Step 2).
+
+Copy the Access Token (starts with ya29...).
+
+Step 3: Setup Thunder Client
+Method: POST
+
+Headers tab:
+
+Content-Type: application/json
+
+Authorization: Bearer PASTE_YOUR_ACCESS_TOKEN_HERE
+
+Body tab (JSON): Paste your code exactly as you had it:
+
+{
+  "message": {
+    "token": "epaMJvkkRPW5oy6C_gmEdP:APA91bE1ypga5Vgn09RWri5M8J9krI75tqnvI_qnZDieqv4kngFrh9YMZdPB01AIAPWkERj2cLix3NKku-81QWjU51V_m9nQQCnM9J7vAoo0q0RvCgRU678",
+    "notification": {
+      "title": "REST Test",
+      "body": "Hello from FCM REST API",
+     
+    },
+    "android": {
+      "priority": "HIGH",
+      "notification": {
+        "channel_id": "moviechatbot-high-v2",
+        "sound": "default"
+      }
+    },
+    "data": {
+      "screen": "MyBookings",
+       "imageUrl" : "https://static.vecteezy.com/system/resources/thumbnails/057/068/323/small/single-fresh-red-strawberry-on-table-green-background-food-fruit-sweet-macro-juicy-plant-image-photo.jpg",
+    }
+  }
+}
+
+
+

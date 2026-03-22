@@ -1,0 +1,1155 @@
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { StyleSheet, View, StatusBar, TouchableOpacity, Text, Image, FlatList, Alert } from 'react-native'
+import { GiftedChat, IMessage, Bubble, InputToolbar, Send } from 'react-native-gifted-chat'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import DatePicker from 'react-native-date-picker'
+import Feather from 'react-native-vector-icons/Feather'
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
+import { Responsive } from '../utilities/Responsive'
+import { Colors } from '../utilities/AppTheme'
+import GradientBackground from '../components/GradientBackground'
+import { startAiChat } from '../services/MovieAiService'
+import { getMoviesFromFirestore } from '../services/movieService'
+
+const STEPS = {
+  DISCOVERY: 'DISCOVERY',
+  DATE: 'DATE',
+  THEATER: 'THEATER',
+  TIME: 'TIME',
+  SEATS: 'SEATS',
+  CONFIRM: 'CONFIRM'
+}
+
+const ChatScreen = ({ route }: any) => {
+  const insets = useSafeAreaInsets()
+  const navigation = useNavigation<any>()
+  const [messages, setMessages] = useState<IMessage[]>([])
+  const [isTyping, setIsTyping] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const initRef = useRef(false)
+  const lastPromptedMovieIdRef = useRef<string | null>(null)
+  const paymentFlowStartedRef = useRef(false)
+  const aiSessionRef = useRef<any>(null)
+  const aiFallbackAnnouncedRef = useRef(false)
+  const [isAiAvailable, setIsAiAvailable] = useState(true)
+  const [allMovies, setAllMovies] = useState<any[]>([])
+  const [moviesLoading, setMoviesLoading] = useState(false)
+  const CUSTOM_HEADER_HEIGHT = 50;
+  const totalOffset = insets.top + Responsive.spacing[25] + CUSTOM_HEADER_HEIGHT;
+
+  const getInitialBookingState = useCallback((movieId?: any, movieName?: any) => ({
+    movieId: movieId || null,
+    movieName: movieName || null,
+    step: movieId ? STEPS.DATE : STEPS.DISCOVERY,
+    showId: null,
+    selectedDate: null,
+    selectedTime: null,
+    selectedTheater: null,
+    selectedSeats: [],
+    totalPrice: 0,
+  }), [])
+  const [bookingState, setBookingState] = useState<any>(getInitialBookingState(route?.params?.movieId, route?.params?.movieName))
+  const botUser = useMemo(() => ({
+    _id: 2,
+    name: 'MovieBot',
+    avatar: require('../assets/images/BotChat.png'),
+  }), [])
+
+  const appendBotMessage = useCallback((text: string, extra?: Partial<IMessage>) => {
+    const botMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text,
+      createdAt: new Date(),
+      user: botUser,
+      ...(extra || {}),
+    }
+    setMessages(prev => GiftedChat.append(prev, [botMsg]))
+  }, [botUser])
+
+  const appendUserMessage = useCallback((text: string) => {
+    const userMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text,
+      createdAt: new Date(),
+      user: { _id: 1 },
+    }
+    setMessages(prev => GiftedChat.append(prev, [userMsg]))
+  }, [])
+
+  const ensureAllMovies = useCallback(async () => {
+    if (allMovies.length > 0 || moviesLoading) return allMovies
+    setMoviesLoading(true)
+    try {
+      const movies = await getMoviesFromFirestore()
+      setAllMovies(movies)
+      return movies
+    } catch (error) {
+      console.error('Fetch movies error:', error)
+      appendBotMessage('Sorry, I could not load movies right now. Please try again.')
+      return []
+    } finally {
+      setMoviesLoading(false)
+    }
+  }, [allMovies, moviesLoading, appendBotMessage])
+
+  const sendDiscoveryGreeting = useCallback(() => {
+    appendBotMessage("Hello! I'm MovieBot 🎬. I can help you find movies or book tickets. What would you like to do?", {
+      quickReplies: {
+        type: 'radio',
+        keepIt: true,
+        values: [
+          { title: '🎬 Show Movie List', value: 'list_movies' },
+          { title: '🎭 Browse by Genre', value: 'list_genres' }
+        ]
+      }
+    })
+  }, [appendBotMessage])
+
+  const sendMovieBookingPrompt = useCallback((movieName?: string | null) => {
+    appendBotMessage(`Great! You've selected "${movieName || 'this movie'}". Let's get you a ticket.\n\n📅 Please select your preferred date:`, {
+      quickReplies: {
+        type: 'radio',
+        keepIt: true,
+        values: [{ title: '📅 Select Date', value: 'select_date' }]
+      }
+    })
+  }, [appendBotMessage])
+
+  const resetChatState = useCallback((withGreeting = true, movieContext?: { movieId?: any, movieName?: any }) => {
+    setMessages([])
+    const nextMovieId = movieContext?.movieId || null
+    const nextMovieName = movieContext?.movieName || null
+    setBookingState(getInitialBookingState(nextMovieId, nextMovieName))
+    if (nextMovieId) {
+      lastPromptedMovieIdRef.current = nextMovieId
+      setTimeout(() => sendMovieBookingPrompt(nextMovieName), 50)
+      return
+    }
+    if (withGreeting) {
+      setTimeout(() => sendDiscoveryGreeting(), 50)
+    }
+  }, [getInitialBookingState, sendDiscoveryGreeting, sendMovieBookingPrompt])
+
+  const sendMovieList = useCallback((movies: any[], heading?: string) => {
+    if (heading) {
+      appendBotMessage(heading)
+    }
+    const listMsg = {
+      _id: Math.round(Math.random() * 1000000),
+      text: '',
+      createdAt: new Date(),
+      user: botUser,
+      custom: {
+        type: 'movie_list',
+        movies,
+      },
+    } as any
+    setMessages(prev => GiftedChat.append(prev, [listMsg]))
+  }, [appendBotMessage, botUser])
+
+  const startBookingForMovie = useCallback((movie: any) => {
+    setBookingState({
+      movieId: movie.id,
+      movieName: movie.title,
+      step: STEPS.DATE,
+      showId: null,
+      selectedDate: null,
+      selectedTime: null,
+      selectedTheater: null,
+      selectedSeats: [],
+      totalPrice: 0,
+    })
+    lastPromptedMovieIdRef.current = movie.id
+    appendBotMessage(`You selected "${movie.title}". Would you like to book this movie?`, {
+      quickReplies: {
+        type: 'radio',
+        keepIt: true,
+        values: [
+          { title: '✅ Yes, book it', value: 'book_movie' },
+          { title: '❌ Not now', value: 'cancel_booking' }
+        ]
+      }
+    })
+  }, [appendBotMessage])
+
+  const normalize = useCallback((text: string) => text.toLowerCase().trim(), [])
+
+  const findMovieInText = useCallback((text: string, movies: any[]) => {
+    const lower = normalize(text)
+    // Prefer exact title match if quoted
+    const quoted = lower.match(/"([^"]+)"/)?.[1]
+    if (quoted) {
+      const exact = movies.find(m => String(m.title).toLowerCase() === quoted)
+      if (exact) return exact
+    }
+    // Fallback: title included in text
+    return movies.find(m => lower.includes(String(m.title).toLowerCase()))
+  }, [normalize])
+
+  const findGenreInText = useCallback((text: string, movies: any[]) => {
+    const lower = normalize(text)
+    const set = new Set<string>()
+    movies.forEach(m => {
+      if (!m.genre) return
+      if (Array.isArray(m.genre)) {
+        m.genre.forEach((g: string) => set.add(String(g).toLowerCase()))
+      } else {
+        set.add(String(m.genre).toLowerCase())
+      }
+    })
+    const genres = Array.from(set)
+    return genres.find(g => lower.includes(g)) || null
+  }, [normalize])
+
+  const isAiQuotaError = useCallback((error: any) => {
+    const msg = String(error?.message || error || '').toLowerCase()
+    return msg.includes('quota') || msg.includes('rate') || msg.includes('429') || msg.includes('resource_exhausted')
+  }, [])
+
+  const ensureAiSession = useCallback(async () => {
+    if (!isAiAvailable) return null
+    if (aiSessionRef.current) return aiSessionRef.current
+    try {
+      aiSessionRef.current = await startAiChat()
+      return aiSessionRef.current
+    } catch (error) {
+      console.error('AI init error:', error)
+      setIsAiAvailable(false)
+      return null
+    }
+  }, [isAiAvailable])
+
+  const sendGenreMovies = useCallback((movies: any[], genre: string) => {
+    const filtered = movies.filter(m => {
+      if (!m.genre) return false
+      if (Array.isArray(m.genre)) {
+        return m.genre.some((g: string) => String(g).toLowerCase() === genre.toLowerCase())
+      }
+      return String(m.genre).toLowerCase() === genre.toLowerCase()
+    })
+    if (filtered.length) {
+      sendMovieList(filtered, `Here are ${genre} movies:`)
+      return
+    }
+    appendBotMessage(`No movies found for ${genre}. Try another genre.`)
+  }, [appendBotMessage, sendMovieList])
+
+  const handleStaticDiscovery = useCallback(async (userText: string) => {
+    try {
+      const movies = await ensureAllMovies()
+      const lower = normalize(userText)
+      const movieMatch = findMovieInText(userText, movies)
+      const genreMatch = findGenreInText(userText, movies)
+
+      if (movieMatch) {
+        startBookingForMovie(movieMatch)
+        return
+      }
+
+      if (genreMatch) {
+        sendGenreMovies(movies, genreMatch)
+        return
+      }
+
+      if (['hi', 'hello', 'hey'].some(word => lower.includes(word))) {
+        sendDiscoveryGreeting()
+        return
+      }
+
+      if (
+        lower.includes('show movie') ||
+        lower.includes('movie list') ||
+        lower.includes('all movies') ||
+        lower.includes('show movies')
+      ) {
+        if (movies.length) {
+          sendMovieList(movies, 'Here are the available movies:')
+        } else {
+          appendBotMessage('No movies are available right now.')
+        }
+        return
+      }
+
+      if (lower.includes('genre')) {
+        const set = new Set<string>()
+        movies.forEach(m => {
+          if (!m.genre) return
+          if (Array.isArray(m.genre)) {
+            m.genre.forEach((g: string) => set.add(String(g)))
+          } else {
+            set.add(String(m.genre))
+          }
+        })
+        const nextGenres = Array.from(set).slice(0, 8)
+        if (!nextGenres.length) {
+          appendBotMessage('No genres available right now. Try "Show Movie List".')
+          return
+        }
+        appendBotMessage('Pick a genre:', {
+          quickReplies: {
+            type: 'radio',
+            keepIt: true,
+            values: nextGenres.map(g => ({ title: `🎭 ${g}`, value: `genre:${g}` }))
+          }
+        })
+        return
+      }
+
+      if (lower.includes('book') || lower.includes('watch')) {
+        appendBotMessage('Tell me the movie name, or tap below to browse:', {
+          quickReplies: {
+            type: 'radio',
+            keepIt: true,
+            values: [
+              { title: '🎬 Show Movie List', value: 'list_movies' },
+              { title: '🎭 Browse by Genre', value: 'list_genres' }
+            ]
+          }
+        })
+        return
+      }
+
+      appendBotMessage('I handle movie-related requests. Try: "hi", "show movies", "show horror movies", or "book <movie name>".')
+    } catch (error) {
+      console.error('Discovery error:', error)
+      appendBotMessage('Sorry, something went wrong. Please try "show movies" or "show horror movies".')
+    }
+  }, [appendBotMessage, ensureAllMovies, findGenreInText, findMovieInText, normalize, sendDiscoveryGreeting, sendGenreMovies, sendMovieList, startBookingForMovie])
+
+  const handleAiDiscovery = useCallback(async (userText: string): Promise<boolean> => {
+    const session = await ensureAiSession()
+    if (!session) return false
+
+    try {
+      const movies = await ensureAllMovies()
+      const lower = normalize(userText)
+      const movieMatch = findMovieInText(userText, movies)
+      const genreMatch = findGenreInText(userText, movies)
+      const result = await session.sendMessage(userText)
+      const response = result?.response
+      const aiText = response?.text?.()
+      const functionCalls = typeof response?.functionCalls === 'function' ? response.functionCalls() : []
+      let handledByTool = false
+
+      if (aiText) {
+        appendBotMessage(aiText)
+      }
+
+      if (functionCalls?.length) {
+        const call = functionCalls[0]
+        const name = call?.name
+        const args = call?.args || {}
+        if (name === 'fetchAllMovies') {
+          handledByTool = true
+          sendMovieList(movies, 'Here are the available movies:')
+        } else if (name === 'fetchMoviesByGenre') {
+          const genre = (args.genre || '').toString().trim()
+          if (genre) {
+            handledByTool = true
+            sendGenreMovies(movies, genre)
+          }
+        }
+      }
+
+      if (movieMatch) {
+        startBookingForMovie(movieMatch)
+        return true
+      }
+      if (genreMatch) {
+        sendGenreMovies(movies, genreMatch)
+        return true
+      }
+      if (
+        lower.includes('show movie') ||
+        lower.includes('movie list') ||
+        lower.includes('all movies') ||
+        lower.includes('show movies')
+      ) {
+        sendMovieList(movies, 'Here are the available movies:')
+        return true
+      }
+
+      return Boolean(aiText || handledByTool)
+    } catch (error) {
+      console.error('AI runtime error:', error)
+      if (isAiQuotaError(error)) {
+        setIsAiAvailable(false)
+      }
+      if (!aiFallbackAnnouncedRef.current) {
+        aiFallbackAnnouncedRef.current = true
+        appendBotMessage('AI is temporarily unavailable. I switched to smart local mode for movie help.')
+      }
+      return false
+    }
+  }, [appendBotMessage, ensureAiSession, ensureAllMovies, findGenreInText, findMovieInText, isAiQuotaError, normalize, sendGenreMovies, sendMovieList, startBookingForMovie])
+
+  const handleDiscoveryMessage = useCallback(async (userText: string) => {
+    setIsTyping(true)
+    try {
+      const aiHandled = await handleAiDiscovery(userText)
+      if (!aiHandled) {
+        await handleStaticDiscovery(userText)
+      }
+    } finally {
+      setIsTyping(false)
+    }
+  }, [handleAiDiscovery, handleStaticDiscovery])
+
+  useEffect(() => {
+    const init = () => {
+      if (initRef.current) return
+      initRef.current = true
+      if (bookingState.movieId) {
+        lastPromptedMovieIdRef.current = bookingState.movieId
+        sendMovieBookingPrompt(bookingState.movieName)
+      } else {
+        sendDiscoveryGreeting()
+      }
+    }
+    init()
+  }, [bookingState.movieId, bookingState.movieName, sendDiscoveryGreeting, sendMovieBookingPrompt])
+  // Reset booking state when new movie is selected
+  useEffect(() => {
+    if (route?.params?.movieId) {
+      setBookingState({
+        movieId: route.params.movieId,
+        movieName: route.params.movieName,
+        step: STEPS.DATE,
+        showId: null,
+        selectedDate: null,
+        selectedTime: null,
+        selectedTheater: null,
+        selectedSeats: [],
+        totalPrice: 0,
+      })
+      if (route.params.movieId !== lastPromptedMovieIdRef.current) {
+        lastPromptedMovieIdRef.current = route.params.movieId
+        sendMovieBookingPrompt(route.params.movieName)
+      }
+    }
+  }, [route?.params?.movieId, route?.params?.movieName, sendMovieBookingPrompt])
+
+  useFocusEffect(
+    useCallback(() => {
+      if (paymentFlowStartedRef.current) {
+        paymentFlowStartedRef.current = false
+        if (route?.params?.movieId) {
+          resetChatState(false, {
+            movieId: route.params.movieId,
+            movieName: route.params.movieName
+          })
+        } else {
+          resetChatState(true)
+        }
+      }
+    }, [resetChatState, route?.params?.movieId, route?.params?.movieName])
+  )
+
+  useEffect(() => {
+    if (route?.params?.selectedTheater) {
+      handleTheaterReturn(route.params.selectedTheater, route.params.selectedTime, route.params.selectedShowId)
+    }
+    if (route?.params?.selectedSeats) {
+      handleSeatsReturn(route.params.selectedSeats, route?.params?.showId)
+    }
+  }, [route?.params])
+
+  const handleTheaterReturn = (theater: string, time: string, showId?: string) => {
+    const userMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text: `🎭 ${theater} at ${time}`,
+      createdAt: new Date(),
+      user: { _id: 1 },
+    }
+    setMessages(prev => GiftedChat.append(prev, [userMsg]))
+
+    setTimeout(() => {
+      const botMsg: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: `Perfect! ${theater} at ${time}\n\nNow let's select your seats:`,
+        createdAt: new Date(),
+        user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [{ title: '🪑 Select Seats', value: 'select_seats' }]
+        }
+      }
+      setMessages(prev => GiftedChat.append(prev, [botMsg]))
+      setBookingState(prev => ({ ...prev, selectedTheater: theater, selectedTime: time, showId: showId || prev.showId, step: STEPS.SEATS }))
+    }, 500)
+  }
+
+  const handleSeatsReturn = (seats: string[], showId?: string) => {
+    const totalPrice = seats.length * 250
+    const userMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text: `🪑 ${seats.length} seats: ${seats.join(', ')}`,
+      createdAt: new Date(),
+      user: { _id: 1 },
+    }
+    setMessages(prev => GiftedChat.append(prev, [userMsg]))
+
+    setTimeout(() => {
+      const summary = `📋 Booking Summary\n\n🎬 ${bookingState.movieName}\n📅 ${bookingState.selectedDate}\n🎭 ${bookingState.selectedTheater}\n⏰ ${bookingState.selectedTime}\n🪑 ${seats.join(', ')}\n💰 ₹${totalPrice}\n\nReady to proceed?`
+      const botMsg: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: summary,
+        createdAt: new Date(),
+        user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [
+            { title: '💳 Proceed to Payment', value: 'proceed_payment' },
+            { title: '🔄 Modify', value: 'modify' }
+          ]
+        }
+      }
+      setMessages(prev => GiftedChat.append(prev, [botMsg]))
+      setBookingState(prev => ({ ...prev, selectedSeats: seats, showId: showId || prev.showId, totalPrice, step: STEPS.CONFIRM }))
+    }, 500)
+  }
+
+  const handleDateConfirm = (date: Date) => {
+    setShowDatePicker(false)
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = date.getFullYear()
+    const storedFormat = `${day}/${month}/${year}`
+
+    // Display format: Monday, February 16
+    const displayFormat = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
+    const userMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text: `📅 ${displayFormat}`,
+      createdAt: new Date(),
+      user: { _id: 1 },
+    }
+    setMessages(prev => GiftedChat.append(prev, [userMsg]))
+
+    setTimeout(() => {
+      const botMsg: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: `Perfect! Now select theater for ${displayFormat}:`,
+        createdAt: new Date(),
+        user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [{ title: '🎭 Select Theater', value: 'select_theater' }]
+        }
+      }
+      setMessages(prev => GiftedChat.append(prev, [botMsg]))
+      setBookingState(prev => ({ ...prev, selectedDate: storedFormat, step: STEPS.THEATER }))
+    }, 500)
+  }
+
+  const onQuickReply = useCallback((quickReply: any) => {
+    const value = quickReply[0]?.value || ''
+    const title = quickReply[0]?.title || ''
+
+    appendUserMessage(title)
+
+    if (value === 'select_date') {
+      setShowDatePicker(true)
+    } else if (value === 'list_movies') {
+      ensureAllMovies().then(movies => {
+        if (movies.length) {
+          sendMovieList(movies, 'Here are the available movies:')
+        }
+      })
+    } else if (value === 'list_genres') {
+      ensureAllMovies().then((movies) => {
+        const set = new Set<string>()
+        movies.forEach(m => {
+          if (!m.genre) return
+          if (Array.isArray(m.genre)) {
+            m.genre.forEach((g: string) => set.add(String(g)))
+          } else {
+            set.add(String(m.genre))
+          }
+        })
+        const nextGenres = Array.from(set).slice(0, 8)
+        if (!nextGenres.length) {
+          appendBotMessage('No genres available right now. Try "Show Movie List".')
+          return
+        }
+        appendBotMessage('Pick a genre:', {
+          quickReplies: {
+            type: 'radio',
+            keepIt: true,
+            values: nextGenres.map(g => ({ title: `🎭 ${g}`, value: `genre:${g}` }))
+          }
+        })
+      })
+    } else if (value.startsWith('genre:')) {
+      const genre = value.replace('genre:', '')
+      ensureAllMovies().then(movies => {
+        const filtered = movies.filter(m => {
+          if (!m.genre) return false
+          if (Array.isArray(m.genre)) {
+            return m.genre.some((g: string) => String(g).toLowerCase() === genre.toLowerCase())
+          }
+          return String(m.genre).toLowerCase() === genre.toLowerCase()
+        })
+        if (filtered.length) {
+          sendMovieList(filtered, `Here are ${genre} movies:`)
+        } else {
+          appendBotMessage(`No movies found for ${genre}. Try another genre.`)
+        }
+      })
+    } else if (value === 'book_movie') {
+      appendBotMessage(`Great! Let's pick a date.`, {
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [{ title: '📅 Select Date', value: 'select_date' }]
+        }
+      })
+    } else if (value === 'select_theater') {
+      if (!bookingState.selectedDate) {
+        showError('Please select a date first')
+        return
+      }
+      navigation.navigate('Home', {
+        screen: 'TheaterSelection',
+        params: { movieName: bookingState.movieName, date: bookingState.selectedDate, returnToChat: true }
+      })
+    } else if (value === 'select_seats') {
+      if (!bookingState.selectedTheater) {
+        showError('Please select theater first')
+        return
+      }
+      navigation.navigate('Home', {
+        screen: 'SeatSelection',
+        params: {
+          movieName: bookingState.movieName,
+          theater: bookingState.selectedTheater,
+          date: bookingState.selectedDate,
+          time: bookingState.selectedTime,
+          showId: bookingState.showId,
+          returnToChat: true
+        }
+      })
+    } else if (value === 'proceed_payment') {
+      paymentFlowStartedRef.current = true
+      setTimeout(() => {
+        navigation.navigate('Home', {
+          screen: 'Payment',
+          params: {
+            bookingDetails: {
+              movieId: bookingState.movieId,
+              movieName: bookingState.movieName,
+              date: bookingState.selectedDate,
+              theater: bookingState.selectedTheater,
+              time: bookingState.selectedTime,
+              showId: bookingState.showId,
+              seats: bookingState.selectedSeats,
+              totalPrice: bookingState.totalPrice
+            }
+          }
+        })
+      }, 500)
+      const botMsg: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: '✅ Redirecting to payment...',
+        createdAt: new Date(),
+        user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+      }
+      setMessages(prev => GiftedChat.append(prev, [botMsg]))
+    } else if (value === 'modify') {
+      const botMsg: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: 'What would you like to modify?',
+        createdAt: new Date(),
+        user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [
+            { title: '📅 Date', value: 'select_date' },
+            { title: '🎭 Theater', value: 'select_theater' },
+            { title: '🪑 Seats', value: 'select_seats' }
+          ]
+        }
+      }
+      setMessages(prev => GiftedChat.append(prev, [botMsg]))
+    } else if (value === 'cancel_booking') {
+      setBookingState(getInitialBookingState())
+      appendBotMessage('No problem. If you want to browse again, choose an option below.', {
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [
+            { title: '🎬 Show Movie List', value: 'list_movies' },
+            { title: '🎭 Browse by Genre', value: 'list_genres' }
+          ]
+        }
+      })
+    } else if (value === 'reset_chat') {
+      resetChatState(true)
+    }
+  }, [appendBotMessage, appendUserMessage, bookingState, ensureAllMovies, getInitialBookingState, resetChatState, sendMovieList])
+
+  const showError = (msg: string) => {
+    const botMsg: IMessage = {
+      _id: Math.round(Math.random() * 1000000),
+      text: `❌ ${msg}`,
+      createdAt: new Date(),
+      user: { _id: 2, name: 'MovieBot', avatar: require('../assets/images/BotChat.png') },
+    }
+    setMessages(prev => GiftedChat.append(prev, [botMsg]))
+  }
+
+  const onSend = useCallback((newMessages: IMessage[] = []) => {
+    setMessages(previousMessages => GiftedChat.append(previousMessages, newMessages))
+    const userMessage = newMessages[0]?.text || ''
+    const normalizedMessage = normalize(userMessage)
+
+    if (normalizedMessage.includes('clear chat') || normalizedMessage.includes('reset chat') || normalizedMessage === 'reset') {
+      resetChatState(true)
+      return
+    }
+
+    if (bookingState.step === STEPS.DISCOVERY && !bookingState.movieId) {
+      handleDiscoveryMessage(userMessage)
+      return
+    }
+
+    if (['hi', 'hello', 'hey'].some(word => normalizedMessage.includes(word))) {
+      appendBotMessage(
+        `You're currently booking "${bookingState.movieName || 'a movie'}". You can continue from where you left off, or reset chat to start fresh.`,
+        {
+          quickReplies: {
+            type: 'radio',
+            keepIt: true,
+            values: [{ title: '🔄 Reset Chat', value: 'reset_chat' }],
+          }
+        }
+      )
+      return
+    }
+
+    if (normalizedMessage.includes('help')) {
+      appendBotMessage('I can help with your current booking. You can select date, theater, seats, proceed to payment, or reset chat.', {
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [
+            { title: '📅 Date', value: 'select_date' },
+            { title: '🎭 Theater', value: 'select_theater' },
+            { title: '🪑 Seats', value: 'select_seats' },
+            { title: '🔄 Reset Chat', value: 'reset_chat' },
+          ]
+        }
+      })
+      return
+    }
+
+    if (
+      normalizedMessage.includes('show movie') ||
+      normalizedMessage.includes('movie list') ||
+      normalizedMessage.includes('genre')
+    ) {
+      appendBotMessage('You have an active booking. Reset chat to browse movies again.', {
+        quickReplies: {
+          type: 'radio',
+          keepIt: true,
+          values: [{ title: '🔄 Reset Chat', value: 'reset_chat' }],
+        }
+      })
+      return
+    }
+
+    setIsTyping(true)
+    setTimeout(() => {
+      const { response, newState } = getBotResponse(userMessage.toLowerCase(), bookingState)
+      if (newState) {
+        setBookingState(newState)
+      }
+      const botMessage: IMessage = {
+        _id: Math.round(Math.random() * 1000000),
+        text: response,
+        createdAt: new Date(),
+        user: {
+          _id: 2,
+          name: 'MovieBot',
+          avatar: require('../assets/appicon/MovieChatIcon.png'),
+        },
+      }
+      setMessages(previousMessages => GiftedChat.append(previousMessages, [botMessage]))
+      setIsTyping(false)
+    }, 1500)
+  }, [appendBotMessage, bookingState, handleDiscoveryMessage, normalize, resetChatState])
+
+  const getBotResponse = (userMessage: string, state: any): { response: string; newState?: any } => {
+    const { step, movieId, movieName } = state
+
+    // Date selection
+    if (step === STEPS.DATE && ['1', '2', '3', 'today', 'tomorrow'].some(k => userMessage.includes(k))) {
+      const dates = ['Today', 'Tomorrow', 'Day After Tomorrow']
+      const selectedDate = userMessage.includes('1') || userMessage.includes('today') ? dates[0] :
+        userMessage.includes('2') || userMessage.includes('tomorrow') ? dates[1] : dates[2]
+
+      return {
+        response: `Perfect! ${selectedDate} it is! 🎬\n\n⏰ Select a showtime:\n\n1️⃣ 10:00 AM\n2️⃣ 01:00 PM\n3️⃣ 04:00 PM\n4️⃣ 07:00 PM\n5️⃣ 10:00 PM`,
+        newState: { ...state, selectedDate, step: STEPS.TIME }
+      }
+    }
+
+    // Time selection
+    if (step === STEPS.TIME && ['1', '2', '3', '4', '5'].some(k => userMessage.includes(k))) {
+      const times = ['10:00 AM', '01:00 PM', '04:00 PM', '07:00 PM', '10:00 PM']
+      const timeIndex = parseInt(userMessage.match(/[1-5]/)?.[0] || '1') - 1
+      const selectedTime = times[timeIndex]
+
+      return {
+        response: `Great choice! ${selectedTime} ⏰\n\n🎭 Select a theater:\n\n1️⃣ PVR Cinemas - Screen 1\n2️⃣ INOX - Screen 2\n3️⃣ Cinepolis - Screen 3`,
+        newState: { ...state, selectedTime, step: STEPS.THEATER }
+      }
+    }
+
+    // Theater selection
+    if (step === STEPS.THEATER && ['1', '2', '3'].some(k => userMessage.includes(k))) {
+      const theaters = ['PVR Cinemas - Screen 1', 'INOX - Screen 2', 'Cinepolis - Screen 3']
+      const theaterIndex = parseInt(userMessage.match(/[1-3]/)?.[0] || '1') - 1
+      const selectedTheater = theaters[theaterIndex]
+
+      return {
+        response: `Excellent! ${selectedTheater} 🎭\n\nHow many seats would you like to book?\n(Type a number between 1-10)`,
+        newState: { ...state, selectedTheater, step: STEPS.SEATS }
+      }
+    }
+
+    // Seat count selection
+    if (step === STEPS.SEATS && /\d+/.test(userMessage)) {
+      const seatCount = parseInt(userMessage.match(/\d+/)?.[0] || '1')
+      if (seatCount > 0 && seatCount <= 10) {
+        const pricePerSeat = 250
+        const totalPrice = seatCount * pricePerSeat
+
+        return {
+          response: `Perfect! ${seatCount} seat(s) selected 🎫\n\n📝 Booking Summary:\n• Movie: ${movieName}\n• Date: ${state.selectedDate}\n• Time: ${state.selectedTime}\n• Theater: ${state.selectedTheater}\n• Seats: ${seatCount}\n• Total: ₹${totalPrice}\n\nType 'confirm' to proceed to payment or 'cancel' to start over.`,
+          newState: { ...state, selectedSeats: Array(seatCount).fill('A'), totalPrice, step: STEPS.CONFIRM }
+        }
+      }
+    }
+
+    // Confirmation
+    if (step === STEPS.CONFIRM) {
+      if (userMessage.includes('confirm')) {
+        setTimeout(() => {
+          console.log("State", state);
+
+          navigation.navigate('Home', { screen: 'Payment', params: { bookingDetails: state } })
+        }, 1000)
+        return {
+          response: `✅ Booking confirmed! Redirecting to payment...`,
+          newState: state
+        }
+      } else if (userMessage.includes('cancel')) {
+        return {
+          response: `Booking cancelled. How else can I help you?`,
+          newState: { ...state, step: STEPS.DATE }
+        }
+      }
+    }
+
+    // Default responses
+    if (userMessage.includes('movie') || userMessage.includes('film')) {
+      return { response: 'Great! I can help you find movies. Here are some popular options:\n\n🎬 Latest Releases\n🎭 Action Movies\n😂 Comedy Films\n💕 Romance\n\nWhich genre interests you?' }
+    } else if (userMessage.includes('book') || userMessage.includes('ticket')) {
+      return { response: 'Perfect! I can help you book tickets. Please tell me which movie you\'d like to watch, or browse movies from the Home screen and tap "Book Now"!' }
+    } else if (userMessage.includes('hello') || userMessage.includes('hi')) {
+      return { response: 'Hello! Welcome to MovieBot! 🎬\n\nI can help you with:\n• Finding movies\n• Checking showtimes\n• Booking tickets\n• Theater information\n\nWhat would you like to do?' }
+    } else if (userMessage.includes('help')) {
+      return { response: 'I\'m here to help! Here\'s what I can do:\n\n🎬 Find Movies - Discover new releases and popular films\n⏰ Showtimes - Check movie schedules\n🎫 Book Tickets - Reserve your seats\n📍 Theaters - Find nearby cinemas\n\nJust ask me anything!' }
+    }
+
+    return { response: 'I understand you\'re looking for movie-related assistance! I can help you with:\n\n• Finding movies and showtimes\n• Booking tickets\n• Theater information\n• Movie recommendations\n\nWhat specifically would you like to know?' }
+  }
+
+  const renderBubble = useCallback((props: any) => (
+    <Bubble
+      {...props}
+      wrapperStyle={{
+        right: {
+          backgroundColor: Colors.primary,
+          borderRadius: Responsive.radius[20],
+          borderBottomRightRadius: 0,
+          marginVertical: Responsive.spacing[2],
+        },
+        left: {
+          backgroundColor: Colors.surface,
+          borderRadius: Responsive.radius[20],
+          borderBottomLeftRadius: 0,
+          marginVertical: Responsive.spacing[2],
+        },
+      }}
+      textStyle={{
+        right: {
+          color: Colors.text.inverse,
+          fontSize: Responsive.fontSize[16],
+        },
+        left: {
+          color: Colors.text.primary,
+          fontSize: Responsive.fontSize[16],
+        },
+      }}
+    />
+  ), [])
+
+  const renderInputToolbar = useCallback((props: any) => (
+    <InputToolbar
+      {...props}
+      containerStyle={styles.inputToolbar}
+      primaryStyle={styles.inputPrimary}
+    />
+  ), [])
+
+  const renderSend = useCallback((props: any) => (
+    <Send {...props}>
+      <View style={styles.sendButton}>
+        <MaterialIcons name="send" size={Responsive.fontSize[20]} color={Colors.text.inverse} />
+      </View>
+    </Send>
+  ), [])
+
+  const renderCustomView = useCallback((props: any) => {
+    const { currentMessage } = props
+    const message = currentMessage as any
+    if (message?.custom?.type !== 'movie_list') return null
+    const movies = message.custom.movies || []
+    if (!movies.length) return null
+    return (
+      <View style={styles.movieListWrapper}>
+        <FlatList
+          data={movies}
+          horizontal
+          keyExtractor={(item) => item.id?.toString?.() || item.title}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.movieListContainer}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.movieCard}
+              onPress={() => startBookingForMovie(item)}
+              activeOpacity={0.8}
+            >
+              <Image source={{ uri: item.image }} style={styles.movieCardImage} />
+              <Text style={styles.movieCardTitle} numberOfLines={1}>{item.title}</Text>
+              {item.genre ? (
+                <Text style={styles.movieCardGenre} numberOfLines={1}>
+                  {Array.isArray(item.genre) ? item.genre.join(', ') : item.genre}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    )
+  }, [startBookingForMovie])
+
+  const onPressClearChat = useCallback(() => {
+    Alert.alert(
+      'Clear Chat',
+      'This will clear messages and reset booking state. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clear', style: 'destructive', onPress: () => resetChatState(true) },
+      ]
+    )
+  }, [resetChatState])
+
+  return (
+    <GradientBackground>
+      <View style={[styles.container,]}>
+        <StatusBar barStyle="light-content" translucent backgroundColor={'transparent'} />
+
+        {/* Header */}
+        <View
+          style={[styles.header, { paddingTop: insets.top + Responsive.spacing[15] }]}
+        >
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Feather name="arrow-left" size={Responsive.fontSize[24]} color={Colors.text.inverse} />
+          </TouchableOpacity>
+
+          <View style={styles.headerContent}>
+            <View style={styles.headerTitle}>
+              <Image
+                source={require('../assets/images/BotChat.png')}
+                style={{ width: Responsive.spacing[45], height: Responsive.spacing[45], }}
+                resizeMode='contain'
+              />
+              <View style={styles.headerText}>
+                <Text style={styles.chatTitle}>MovieBot</Text>
+                <Text style={styles.chatSubtitle}>Online • Ready to help</Text>
+              </View>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.clearButton} onPress={onPressClearChat} activeOpacity={0.8}>
+            <MaterialIcons name="delete-outline" size={Responsive.fontSize[22]} color={Colors.text.inverse} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Chat */}
+        <GiftedChat
+          messages={messages}
+          onSend={onSend}
+          onQuickReply={onQuickReply}
+          user={{ _id: 1 }}
+          renderBubble={renderBubble}
+          renderCustomView={renderCustomView}
+          renderInputToolbar={renderInputToolbar}
+          renderSend={renderSend}
+          textInputProps={{ placeholder: 'Enter a message' }}
+          isTyping={isTyping}
+          minInputToolbarHeight={60}
+          keyboardAvoidingViewProps={{
+            behavior: 'padding',
+            keyboardVerticalOffset: totalOffset,
+          }}
+          listProps={{
+            removeClippedSubviews: true,
+            maxToRenderPerBatch: 10,
+            windowSize: 10,
+          }}
+        />
+      </View>
+      <View style={{
+        paddingBottom: insets.bottom + 10,
+        backgroundColor: 'transparent'
+      }} />
+
+      <DatePicker
+        modal
+        open={showDatePicker}
+        date={selectedDate}
+        mode="date"
+        minimumDate={new Date()}
+        onConfirm={handleDateConfirm}
+        onCancel={() => setShowDatePicker(false)}
+        theme="dark"
+      />
+    </GradientBackground>
+  )
+}
+
+export default ChatScreen
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Responsive.spacing[20],
+    paddingBottom: Responsive.spacing[15],
+    backgroundColor: Colors.primary,
+    elevation: 4,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  backButton: {
+    padding: Responsive.padding[8],
+    marginRight: Responsive.spacing[10],
+  },
+  clearButton: {
+    padding: Responsive.padding[8],
+    marginLeft: Responsive.spacing[10],
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerText: {
+    marginLeft: Responsive.spacing[12],
+  },
+  chatTitle: {
+    fontSize: Responsive.fontSize[18],
+    fontWeight: 'bold',
+    color: Colors.text.inverse,
+  },
+  chatSubtitle: {
+    fontSize: Responsive.fontSize[12],
+    color: Colors.text.inverse,
+    opacity: 0.8,
+    marginTop: Responsive.spacing[2],
+  },
+  inputToolbar: {
+    backgroundColor: Colors.background,
+    // borderTopColor: Colors.border.default,
+    paddingHorizontal: Responsive.spacing[10],
+    paddingVertical: Responsive.spacing[8],
+    borderRadius: Responsive.radius[35],
+
+  },
+  inputPrimary: {
+    backgroundColor: Colors.background,
+    borderRadius: Responsive.radius[35],
+    paddingHorizontal: Responsive.padding[10],
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0.5,
+    borderColor: Colors.border.default,
+    color: Colors.text.primary,
+  },
+  sendButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: Responsive.radius[20],
+    padding: Responsive.padding[10],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  movieListWrapper: {
+    paddingVertical: Responsive.spacing[8],
+  },
+  movieListContainer: {
+    paddingHorizontal: Responsive.spacing[6],
+  },
+  movieCard: {
+    width: Responsive.size.wp(45),
+    marginRight: Responsive.spacing[10],
+    borderRadius: Responsive.radius[12],
+    backgroundColor: Colors.surface,
+    paddingBottom: Responsive.spacing[8],
+    elevation: 2,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+  },
+  movieCardImage: {
+    width: '100%',
+    height: Responsive.size.hp(18),
+    borderTopLeftRadius: Responsive.radius[12],
+    borderTopRightRadius: Responsive.radius[12],
+  },
+  movieCardTitle: {
+    fontSize: Responsive.fontSize[14],
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginTop: Responsive.spacing[6],
+    paddingHorizontal: Responsive.spacing[8],
+  },
+  movieCardGenre: {
+    fontSize: Responsive.fontSize[11],
+    color: Colors.text.secondary,
+    marginTop: Responsive.spacing[2],
+    paddingHorizontal: Responsive.spacing[8],
+  },
+})
