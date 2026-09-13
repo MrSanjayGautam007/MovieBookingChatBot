@@ -11,7 +11,7 @@ import {
     onSnapshot,
     runTransaction,
 } from '@react-native-firebase/firestore';
-
+import logger from '../utilities/logger';
 const sanitizeKeyPart = (value) => String(value || '')
     .trim()
     .toLowerCase()
@@ -40,7 +40,7 @@ export const subscribeBookedSeatsForShow = (showId, onSeats, onError) => {
             onSeats(Array.isArray(data.bookedSeats) ? data.bookedSeats : []);
         },
         (error) => {
-            console.error('Seat subscription error:', error);
+            logger.error('Seat subscription error:', error);
             if (onError) onError(error);
         }
     );
@@ -94,7 +94,7 @@ export const getMoviesFromFirestore = async () => {
             ...doc.data(),
         }));
     } catch (error) {
-        console.error("Service Layer Error:", error);
+        logger.error("Service Layer Error:", error);
         throw error;
     }
 };
@@ -115,7 +115,7 @@ export const saveBookingToFirestore = async (bookingData) => {
 
         return { id: docRef.id, ticketId, ...bookingData };
     } catch (error) {
-        console.error("Booking Save Error:", error);
+        logger.error("Booking Save Error:", error);
         throw error;
     }
 };
@@ -133,7 +133,7 @@ export const getUserBookingsFromFirestore = async (uid) => {
             ...doc.data(),
         }));
     } catch (error) {
-        console.error("Fetch Bookings Error:", error);
+        logger.error("Fetch Bookings Error:", error);
         throw error;
     }
 };
@@ -150,7 +150,7 @@ export const getTheatersFromFirestore = async () => {
             ...doc.data(),
         }));
     } catch (error) {
-        console.error("Fetch Theaters Error:", error);
+        logger.error("Fetch Theaters Error:", error);
         throw error;
     }
 };
@@ -169,7 +169,7 @@ export const getBookingByTicketId = async (ticketId, uid) => {
         const doc = querySnapshot.docs[0];
         return { id: doc.id, ...doc.data() };
     } catch (error) {
-        console.error("Fetch Booking Error:", error);
+        logger.error("Fetch Booking Error:", error);
         throw error;
     }
 };

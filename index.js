@@ -23,6 +23,7 @@ import {
     initializeAppCheck,
     ReactNativeFirebaseAppCheckProvider
 } from '@react-native-firebase/app-check';
+import logger from './src/utilities/logger';
 
 const setupSecurity = async () => {
     try {
@@ -45,10 +46,10 @@ const setupSecurity = async () => {
             isTokenAutoRefreshEnabled: true,
         });
 
-        console.log("✅ Security initialized!");
+        logger.log("✅ Security initialized!");
     } catch (error) {
         // If you see "No Firebase App", call initializeApp() before getApp()
-        console.error("❌ Setup failed:", error);
+        logger.error("❌ Setup failed:", error);
     }
 };
 
@@ -56,17 +57,17 @@ setupSecurity();
 
 notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
-        console.log('Notifee background event:', type, detail?.notification?.id);
+        logger.log('Notifee background event:', type, detail?.notification?.id);
     }
 });
 notifee.onForegroundEvent(async ({ type, detail }) => {
     if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
-        console.log('Notifee foreground event:', type, detail?.notification?.id);
+        logger.log('Notifee foreground event:', type, detail?.notification?.id);
     }
 });
 
 setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
-    console.log('Background push message:', remoteMessage);
+    logger.log('Background push message:', remoteMessage);
     await displayLocalNotificationFromRemoteMessage(remoteMessage, 'background');
 });
 

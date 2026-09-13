@@ -12,12 +12,13 @@ import auth from '@react-native-firebase/auth';
 import { signInWithPhoneNumber } from '@react-native-firebase/auth';
 import { loginWithEmail, loginWithGoogle, verifyOtpAndLogin } from '../redux/slice/authSlice';
 import Toast from 'react-native-toast-message';
+import { logger } from '../utilities/logger';
 
 const LoginScreen = () => {
     const getAuth = () => auth(getApp());
     const { loginLoading, error, googleLoginLoading, otpVerifyLoading } = useSelector((state: any) => state.auth)
-    // console.log('otpverifyloading', otpVerifyLoading);
-    // console.log('Google Loading', googleLoginLoading);
+    // logger.log('otpverifyloading', otpVerifyLoading);
+    // logger.log('Google Loading', googleLoginLoading);
 
 
     const insets = useSafeAreaInsets();
@@ -175,7 +176,7 @@ const LoginScreen = () => {
         }
         try {
             const res = await signInWithPhoneNumber(getAuth(), fullNumber);
-            console.log("SMS Sent", res);
+            logger.log("SMS Sent", res);
             if (Platform.OS === 'android') {
                 ToastAndroid.showWithGravity('OTP Sent.', ToastAndroid.LONG, ToastAndroid.BOTTOM)
             }
@@ -186,7 +187,7 @@ const LoginScreen = () => {
             setOtp('');
             focusField('otp');
         } catch (e) {
-            console.log("SMS Error", e.message, typeof e);
+            logger.log("SMS Error", e.message, typeof e);
             // const errorMsg = 
             if (__DEV__) {
                 Toast.show({
@@ -234,7 +235,7 @@ const LoginScreen = () => {
 
         } catch (e) {
             // 4. Error Logic (e is the 'message' from rejectWithValue)
-            console.log("Verification Error:", e);
+            logger.log("Verification Error:", e);
             setErrors({ otp: e || 'Invalid Otp' });
             triggerShake('otp');
             Vibration.vibrate(50);

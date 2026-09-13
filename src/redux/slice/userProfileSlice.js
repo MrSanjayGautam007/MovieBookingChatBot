@@ -11,8 +11,7 @@ import {
   updateDoc,
   serverTimestamp,
 } from '@react-native-firebase/firestore';
-
-
+import logger from '../../utilities/logger';
 import Toast from 'react-native-toast-message';
 import { Platform } from 'react-native';
 
@@ -65,15 +64,15 @@ export const createUserProfile = createAsyncThunk(
         };
 
         await setDoc(userRef, initialData);
-        // console.log("Firestore: New profile created successfully.");
+        // logger.log("Firestore: New profile created successfully.");
         return initialData;
       }
 
       // 3. If it exists, return the existing data to sync Redux
-      // console.log("Firestore: Profile already exists, skipping creation.");
+      // logger.log("Firestore: Profile already exists, skipping creation.");
       return snap.data();
     } catch (error) {
-      console.error("Create Profile Error:", error);
+      logger.error("Create Profile Error:", error);
 
       // Handle the error message safely
       const errorMessage = error.code ? getReadableFirestoreError(error.code) : error.message;
@@ -110,7 +109,7 @@ export const fetchUserProfile = createAsyncThunk(
 export const updateUserProfile = createAsyncThunk(
   'user/updateProfile',
   async ({ uid, name, phone, }, thunkAPI) => {
-    // console.log('User update pressed thunk', uid, name, phone, photoURL);
+    // logger.log('User update pressed thunk', uid, name, phone, photoURL);
 
     try {
       // 
@@ -141,7 +140,7 @@ export const updateUserProfile = createAsyncThunk(
         text1: 'Profile Updated',
         text2: 'Your profile has been updated successfully.',
       });
-      // console.log('Updated details', name, phone, photoURL);
+      // logger.log('Updated details', name, phone, photoURL);
 
       return {
         name,
@@ -156,7 +155,7 @@ export const updateUserProfile = createAsyncThunk(
         text1: 'Update Failed',
         text2: 'Unable to update profile. Please try again.',
       });
-      // console.log(error);
+      // logger.log(error);
 
       return thunkAPI.rejectWithValue('Profile update failed');
     }
@@ -194,7 +193,7 @@ export const updateProfilePhoto = createAsyncThunk(
               // NOT user.reload (deprecated) and NOT user.reload() (namespaced)
               await reload(user);
 
-              // console.log("Auth Refreshed successfully");
+              // logger.log("Auth Refreshed successfully");
             }
 
             await updateDoc(doc(db, 'users', uid), {
@@ -234,7 +233,7 @@ export const deleteProfilePhoto = createAsyncThunk(
 
         // Use the MODULAR reload function
         await reload(user);
-        // console.log("Auth Refreshed successfully");
+        // logger.log("Auth Refreshed successfully");
       }
       // 2. Update Firestore Document
       const userDocRef = doc(db, 'users', uid);

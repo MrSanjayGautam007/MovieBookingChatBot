@@ -12,7 +12,7 @@ import RNBootSplash from "react-native-bootsplash";
 import BottomTabs from '../navigations/BottomTabs';
 import OnboardingScreen from '../screens/OnBoardingScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import logger from '../utilities/logger';
 
 import { useDispatch, useSelector } from 'react-redux';
 
@@ -72,7 +72,7 @@ const RootNav = () => {
     };
     const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
     const { user } = useSelector(state => state.auth);
-    // console.log('User', user);
+    // logger.log('User', user);
     const network = useSelector((state) => state.network);
     const isChecking = network.isConnected === null;
     const isOffline = network.isConnected === false;

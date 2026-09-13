@@ -7,6 +7,7 @@ import Feather from 'react-native-vector-icons/Feather'
 import { Responsive } from '../utilities/Responsive'
 import { Colors } from '../utilities/AppTheme'
 import { buildShowId, subscribeBookedSeatsForShow } from '../services/movieService'
+import { logger } from '../utilities/logger'
 
 const SeatSelectionScreen = () => {
   const insets = useSafeAreaInsets()
@@ -160,7 +161,7 @@ const SeatSelectionScreen = () => {
             style={styles.proceedButton}
             onPress={() => {
               const paymentParams = { movie, theater: normalizedTheater, time, date, selectedSeats, total: selectedSeats.length * pricePerSeat }
-              console.log('Navigating to Payment with:', paymentParams)
+              logger.log('Navigating to Payment with:', paymentParams)
               if (route.params?.returnToChat) {
                 navigation.navigate('Book', { selectedSeats, showId })
               } else {

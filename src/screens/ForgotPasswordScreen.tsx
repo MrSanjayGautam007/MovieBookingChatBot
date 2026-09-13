@@ -7,6 +7,7 @@ import { Responsive } from '../utilities/Responsive';
 import { Colors } from '../utilities/AppTheme';
 import { forgotPassword } from '../redux/slice/authSlice';
 import { useDispatch, useSelector } from 'react-redux';
+import { logger } from '../utilities/logger';
 
 const ForgotPasswordScreen = () => {
     const insets = useSafeAreaInsets();
@@ -96,8 +97,8 @@ const ForgotPasswordScreen = () => {
 
             })
         } catch (error) {
-            console.log("Firebase Error Code:", error.code); // Look for specific codes here
-            console.log("Firebase Error Message:", error.message);
+            logger.log("Firebase Error Code:", error.code); // Look for specific codes here
+            logger.log("Firebase Error Message:", error.message);
 
         }
         return () => { clearInterval(timerRef.current) };

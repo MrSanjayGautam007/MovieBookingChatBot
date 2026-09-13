@@ -11,7 +11,7 @@ const MovieDetailsScreen = () => {
   const insets = useSafeAreaInsets()
   const navigation = useNavigation()
   const route = useRoute()
-  // console.log('Route', route.params?.movie);
+  // logger.log('Route', route.params?.movie);
 
   const movie = route.params?.movie || {
     title: 'Avengers: Endgame',

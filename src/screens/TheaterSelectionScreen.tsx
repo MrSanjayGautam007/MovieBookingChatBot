@@ -21,12 +21,12 @@ const TheaterSelectionScreen = () => {
   const [selectedDate, setSelectedDate] = useState(0)
   const [selectedShowTime, setSelectedShowTime] = useState(null)
   const { theatersList, theatersFetchLoading, theatreStatus } = useSelector((state: any) => state.movies)
-// console.log('Theatre status',theatreStatus);
+// logger.log('Theatre status',theatreStatus);
 
   useEffect(() => {
     if (theatreStatus === 'idle') {
       dispatch(fetchTheaters())
-      // console.log("fetching theaters")
+      // logger.log("fetching theaters")
 
     }
   }, [theatreStatus, dispatch])

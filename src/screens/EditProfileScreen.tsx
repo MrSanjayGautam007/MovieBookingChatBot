@@ -12,11 +12,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { TrueSheet } from '@lodev09/react-native-true-sheet';
 import { pickImageFromCamera, pickImageFromGallery } from '../utilities/imageCropPicker'
 import { deleteProfilePhoto, updateProfilePhoto, updateUserProfile } from '../redux/slice/userProfileSlice'
+import { logger } from '../utilities/logger'
 
 // import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 const EditProfileScreen = () => {
   const { profile, updateLoading, profilePicLoading, uploadProgress, profilePicDeleteLoading } = useSelector((state) => state.user);
-  // console.log('Profile', profile);
+  // logger.log('Profile', profile);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { user } = useSelector((state) => state.auth)
@@ -109,7 +110,7 @@ const EditProfileScreen = () => {
       setLocalPhoto(null);
     } catch (error) {
       setLocalPhoto(null); // Reset on error
-      console.error("Gallery Upload Error:", error);
+      logger.error("Gallery Upload Error:", error);
     }
   };
 
@@ -131,7 +132,7 @@ const EditProfileScreen = () => {
       setLocalPhoto(null);
     } catch (error) {
       setLocalPhoto(null);
-      console.error("Camera Upload Error:", error);
+      logger.error("Camera Upload Error:", error);
     }
   };
 
@@ -141,11 +142,11 @@ const EditProfileScreen = () => {
       // Clear everything to show placeholder
       setLocalPhoto(null);
     } catch (error) {
-      console.error("Remove Error:", error);
+      logger.error("Remove Error:", error);
     }
   };
   const handleUpdate = () => {
-    // console.log('Updated pressed');
+    // logger.log('Updated pressed');
 
     let newErrors = {};
     if (!email.trim()) {

@@ -11,6 +11,7 @@ import { Colors } from '../utilities/AppTheme'
 import GradientBackground from '../components/GradientBackground'
 import { startAiChat } from '../services/MovieAiService'
 import { getMoviesFromFirestore } from '../services/movieService'
+import { logger } from '../utilities/logger'
 
 const STEPS = {
   DISCOVERY: 'DISCOVERY',
@@ -86,7 +87,7 @@ const ChatScreen = ({ route }: any) => {
       setAllMovies(movies)
       return movies
     } catch (error) {
-      console.error('Fetch movies error:', error)
+      logger.error('Fetch movies error:', error)
       appendBotMessage('Sorry, I could not load movies right now. Please try again.')
       return []
     } finally {
@@ -215,7 +216,7 @@ const ChatScreen = ({ route }: any) => {
       aiSessionRef.current = await startAiChat()
       return aiSessionRef.current
     } catch (error) {
-      console.error('AI init error:', error)
+      logger.error('AI init error:', error)
       setIsAiAvailable(false)
       return null
     }
@@ -313,7 +314,7 @@ const ChatScreen = ({ route }: any) => {
 
       appendBotMessage('I handle movie-related requests. Try: "hi", "show movies", "show horror movies", or "book <movie name>".')
     } catch (error) {
-      console.error('Discovery error:', error)
+      logger.error('Discovery error:', error)
       appendBotMessage('Sorry, something went wrong. Please try "show movies" or "show horror movies".')
     }
   }, [appendBotMessage, ensureAllMovies, findGenreInText, findMovieInText, normalize, sendDiscoveryGreeting, sendGenreMovies, sendMovieList, startBookingForMovie])
@@ -373,7 +374,7 @@ const ChatScreen = ({ route }: any) => {
 
       return Boolean(aiText || handledByTool)
     } catch (error) {
-      console.error('AI runtime error:', error)
+      logger.error('AI runtime error:', error)
       if (isAiQuotaError(error)) {
         setIsAiAvailable(false)
       }
@@ -843,7 +844,7 @@ const ChatScreen = ({ route }: any) => {
     if (step === STEPS.CONFIRM) {
       if (userMessage.includes('confirm')) {
         setTimeout(() => {
-          console.log("State", state);
+          logger.log("State", state);
 
           navigation.navigate('Home', { screen: 'Payment', params: { bookingDetails: state } })
         }, 1000)

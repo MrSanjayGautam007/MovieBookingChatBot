@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import changeNavigationBarColor from "react-native-navigation-bar-color";
 
-const ScreenWrapper = ({ children }) => {
+const ScreenWrapper = ({ children }: any) => {
     useEffect(() => {
         if (Platform.OS === 'android') {
             changeNavigationBarColor('transparent', true); // true = light icons

@@ -9,7 +9,7 @@ const networkGuardMiddleware = (store) => (next) => (action) => {
         const { isConnected, isInternetReachable } = state.network;
 
         if (!isConnected || isInternetReachable === false) {
-            // console.warn(`Action ${action.type} blocked: No Internet.`);
+            // logger.warn(`Action ${action.type} blocked: No Internet.`);
 
             Toast.show({
                 type: 'error',

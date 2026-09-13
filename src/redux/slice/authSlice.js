@@ -23,9 +23,8 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Toast from 'react-native-toast-message';
 import { FIREBASE_WEB_CLIENT_ID } from '@env';
 import { createUserProfile, updateUserProfile } from './userProfileSlice';
+import logger from '../../utilities/logger';
 const getAuth = () => auth(getApp());
-
-// console.log(FIREBASE_WEB_CLIENT_ID);
 
 GoogleSignin.configure({
     webClientId: FIREBASE_WEB_CLIENT_ID,
@@ -113,7 +112,7 @@ export const phoneAuthService = {
 export const loginWithGoogle = createAsyncThunk(
     'auth/loginWithGoogle',
     async (_, thunkAPI) => {
-        // console.log('GoogleLogin');
+        // logger.log('GoogleLogin');
 
         try {
             await GoogleSignin.hasPlayServices();
@@ -144,7 +143,7 @@ export const loginWithGoogle = createAsyncThunk(
 
         } catch (error) {
             // Log exactly what the error is before trying to access .code
-            console.log("ACTUAL ERROR:", error);
+            logger.log("ACTUAL ERROR:", error);
 
             const errorCode = error?.code || 'unknown';
             const message = getReadableErrorMessage(errorCode);
@@ -167,7 +166,7 @@ export const logoutUser = createAsyncThunk(
             Toast.show({ type: 'info', text1: 'Logged Out', text2: 'See you soon!' });
             return null;
         } catch (error) {
-            // console.log('Logout error', error);
+            // logger.log('Logout error', error);
 
             return thunkAPI.rejectWithValue(error.message);
         }
@@ -285,7 +284,7 @@ export const deleteAccount = createAsyncThunk(
             return null;
 
         } catch (error) {
-            console.error("Delete Flow Error:", error);
+            logger.error("Delete Flow Error:", error);
             let message = "Deletion failed, Try again later or Contact support for account deletion";
             if (error.code === 'auth/wrong-password') message = "Incorrect password.";
 
@@ -314,7 +313,7 @@ export const deleteGoogleAccount = createAsyncThunk(
             Toast.show({ type: 'success', text1: 'Success', text2: 'Account and data deleted.' });
             return null;
         } catch (error) {
-            console.error("Google Delete Error:", error);
+            logger.error("Google Delete Error:", error);
             const message = "Google verification failed. Please try again.";
             Toast.show({ type: 'error', text1: 'Error', text2: message });
             return thunkAPI.rejectWithValue(message);
@@ -339,7 +338,7 @@ export const deleteEmailAccount = createAsyncThunk(
             Toast.show({ type: 'success', text1: 'Success', text2: 'Account and data deleted.' });
             return null;
         } catch (error) {
-            console.error("Email Delete Error:", error);
+            logger.error("Email Delete Error:", error);
             let message = "Deletion failed.";
             if (error.code === 'auth/wrong-password') message = "Incorrect password.";
             if (error.code === 'auth/requires-recent-login') message = "Please re-login to delete account.";
@@ -367,7 +366,7 @@ export const verifyOtpAndLogin = createAsyncThunk(
             return serializeUser(userCredential.user);
         } catch (error) {
             // Use your existing helper for readable errors
-            console.log('Otp Error', error.code);
+            logger.log('Otp Error', error.code);
 
             const message = getReadableErrorMessage(error.code);
             Toast.show({ type: 'error', text1: 'Verification Failed', text2: message });

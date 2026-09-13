@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getMoviesFromFirestore, saveBookingToFirestore, getUserBookingsFromFirestore, getTheatersFromFirestore } from '../../services/movieService';
-
+import logger from '../../utilities/logger';
 export const fetchMovies = createAsyncThunk(
     'movies/fetchMovies',
     async (_, { rejectWithValue }) => {
@@ -83,7 +83,7 @@ const moviesSlice = createSlice({
                 state.movieFetchLoading = false;
                 state.moviesList = action.payload;
                 state.movieStatus = 'succeeded';
-                // console.log("Data received from Firebase:", action.payload);
+                // logger.log("Data received from Firebase:", action.payload);
             })
             .addCase(fetchMovies.rejected, (state, action) => {
                 state.movieFetchLoading = false;

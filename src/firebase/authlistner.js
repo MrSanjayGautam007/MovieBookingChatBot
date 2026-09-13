@@ -4,7 +4,7 @@ import auth, { onAuthStateChanged } from '@react-native-firebase/auth';
 import { setUser } from '../redux/slice/authSlice';
 // import { createUserProfile, fetchUserProfile } from '../redux/slice/userSlice';
 import { clearProfile, createUserProfile, fetchUserProfile } from '../redux/slice/userProfileSlice';
-
+import logger from '../utilities/logger';
 export const listenToAuthChanges = (dispatch) => {
     const app = getApp();
 
@@ -17,7 +17,7 @@ export const listenToAuthChanges = (dispatch) => {
             }
 
             // 1️⃣ Auth state
-            // console.log('User in auth listner', user);
+            // logger.log('User in auth listner', user);
 
             const serialized = serializeUser(user);
             dispatch(setUser(serialized));
@@ -39,7 +39,7 @@ export const listenToAuthChanges = (dispatch) => {
             // 3️⃣ Fetch Firestore profile
             await dispatch(fetchUserProfile(user.uid))
         } catch (error) {
-            console.error("Auth Listener Sync Error:", error);
+            logger.error("Auth Listener Sync Error:", error);
 
         }
     });

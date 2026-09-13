@@ -14,7 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { deleteDoc, doc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import notifee, { AndroidImportance, AndroidStyle } from '@notifee/react-native';
-
+ import { logger } from '../utilities/logger';
 const ANDROID_CHANNEL_ID = 'moviechatbot-high-v2';
 const ANDROID_CHANNEL_NAME = 'General Notifications';
 const DEDUPE_TTL_MS = 2 * 60 * 1000;
@@ -145,7 +145,7 @@ const navigateFromNotificationData = async (data?: Record<string, string>) => {
   try {
     await Linking.openURL(deepLink);
   } catch (error) {
-    console.log('Failed to open deep link:', deepLink, error);
+    logger.log('Failed to open deep link:', deepLink, error);
   }
 };
 
@@ -231,7 +231,7 @@ const saveTokenForUser = async (uid: string, token: string): Promise<void> => {
       { merge: true },
     );
   } catch (error) {
-    console.log('Failed to save FCM token:', error);
+    logger.log('Failed to save FCM token:', error);
   }
 };
 
@@ -239,7 +239,7 @@ const persistDeviceToken = async (token: string): Promise<void> => {
   try {
     await AsyncStorage.setItem(DEVICE_FCM_TOKEN_STORAGE_KEY, token);
   } catch (error) {
-    console.log('Failed to persist device token:', error);
+    logger.log('Failed to persist device token:', error);
   }
 };
 
@@ -247,7 +247,7 @@ const getPersistedDeviceToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(DEVICE_FCM_TOKEN_STORAGE_KEY);
   } catch (error) {
-    console.log('Failed to read persisted device token:', error);
+    logger.log('Failed to read persisted device token:', error);
     return null;
   }
 };
@@ -260,7 +260,7 @@ export const cleanupPushTokenForUser = async (uid?: string | null): Promise<void
     try {
       token = await getToken(getMessaging());
     } catch (error) {
-      console.log('Failed to get current device token for cleanup:', error);
+      logger.log('Failed to get current device token for cleanup:', error);
     }
   }
   if (!token) return;
@@ -269,12 +269,12 @@ export const cleanupPushTokenForUser = async (uid?: string | null): Promise<void
     const db = getFirestore();
     await deleteDoc(doc(db, 'users', uid, 'devices', token));
   } catch (error) {
-    console.log('Failed to delete device token doc:', error);
+    logger.log('Failed to delete device token doc:', error);
   } finally {
     try {
       await AsyncStorage.removeItem(DEVICE_FCM_TOKEN_STORAGE_KEY);
     } catch (error) {
-      console.log('Failed to clear persisted device token:', error);
+      logger.log('Failed to clear persisted device token:', error);
     }
   }
 };
@@ -289,20 +289,20 @@ export const initializePushNotifications = async ({
   const messagingInstance = getMessaging();
   const isAndroidGranted = await requestAndroidNotificationPermission();
   if (!isAndroidGranted) {
-    console.log('Android notification permission denied.');
+    logger.log('Android notification permission denied.');
     return () => { };
   }
 
   const isMessagingGranted = await requestMessagingPermission();
   if (!isMessagingGranted) {
-    console.log('Messaging permission denied.');
+    logger.log('Messaging permission denied.');
     return () => { };
   }
 
   await ensureAndroidChannel();
   await registerDeviceForRemoteMessages(messagingInstance);
   const token = await getToken(messagingInstance);
-  console.log('FCM token:', token);
+  logger.log('FCM token:', token);
   await persistDeviceToken(token);
 
   if (uid && token) {
@@ -310,12 +310,12 @@ export const initializePushNotifications = async ({
   }
 
   const unsubscribeForeground = onMessage(messagingInstance, async remoteMessage => {
-    console.log('Foreground push message:', remoteMessage);
+    logger.log('Foreground push message:', remoteMessage);
     await displayLocalNotificationFromRemoteMessage(remoteMessage, 'foreground');
   });
 
   const unsubscribeTokenRefresh = onTokenRefresh(messagingInstance, async nextToken => {
-    console.log('FCM token refreshed:', nextToken);
+    logger.log('FCM token refreshed:', nextToken);
     await persistDeviceToken(nextToken);
     if (uid) {
       await saveTokenForUser(uid, nextToken);
@@ -323,13 +323,13 @@ export const initializePushNotifications = async ({
   });
 
   const unsubscribeOpenFromBackground = onNotificationOpenedApp(messagingInstance, remoteMessage => {
-    console.log('Notification opened from background:', remoteMessage);
+    logger.log('Notification opened from background:', remoteMessage);
     navigateFromNotificationData(remoteMessage?.data as Record<string, string>);
   });
 
   const initialNotification = await getInitialNotification(messagingInstance);
   if (initialNotification) {
-    console.log('Notification opened from quit state:', initialNotification);
+    logger.log('Notification opened from quit state:', initialNotification);
     setTimeout(() => {
       navigateFromNotificationData(initialNotification?.data as Record<string, string>);
     }, 700);

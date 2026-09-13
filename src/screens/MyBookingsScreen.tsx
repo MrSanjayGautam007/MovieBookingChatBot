@@ -9,6 +9,7 @@ import { Responsive } from '../utilities/Responsive'
 import { Colors } from '../utilities/AppTheme'
 import GradientBackground from '../components/GradientBackground'
 import { fetchUserBookings, refreshUserBookingsLoading } from '../redux/slice/moviesSlice'
+import { logger } from '../utilities/logger'
 
 const MyBookingsScreen = () => {
   const insets = useSafeAreaInsets()
@@ -19,14 +20,14 @@ const MyBookingsScreen = () => {
   const user = useSelector((state: any) => state.auth.user)
   const uid = user?.uid || null
   const { bookingsList, bookingsFetchLoading, userBookingStatus, userBookingRefreshLoading } = useSelector((state: any) => state.movies)
-  // console.log('MyBookingsScreen:', bookingsList, bookingsFetchLoading)
-  // console.log('User booking status', userBookingStatus)
+  // logger.log('MyBookingsScreen:', bookingsList, bookingsFetchLoading)
+  // logger.log('User booking status', userBookingStatus)
   useFocusEffect(
     useCallback(() => {
       if (!uid) return
       if (userBookingStatus === 'idle') {
         dispatch(fetchUserBookings(uid))
-        // console.log('Fetching User bookings');
+        // logger.log('Fetching User bookings');
 
       }
     }, [userBookingStatus, uid, dispatch])
@@ -65,7 +66,7 @@ const MyBookingsScreen = () => {
     try {
       await dispatch(fetchUserBookings(user?.uid) as any)
     } catch (error) {
-      console.log(error);
+      logger.log(error);
 
     } finally {
       dispatch(refreshUserBookingsLoading(false))

@@ -15,6 +15,7 @@ import { cleanupPushTokenForUser, initializePushNotifications } from './src/serv
 import { getApp } from '@react-native-firebase/app';
 import { initializeAppCheck, ReactNativeFirebaseAppCheckProvider } from '@react-native-firebase/app-check';
 import ScreenWrapper from './src/components/ScreenWrapper';
+import { logger } from './src/utilities/logger';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -275,9 +276,9 @@ const App = () => {
       const movieCollection = collection(db, 'movies');
       // We use Promise.all to fire all 10 requests at once
       await Promise.all(movies.map(movie => addDoc(movieCollection, movie)));
-      console.log("All movies added to Firestore!");
+      logger.log("All movies added to Firestore!");
     } catch (error) {
-      console.error("Error seeding movies: ", error);
+      logger.error("Error seeding movies: ", error);
     }
   };
 
@@ -298,9 +299,9 @@ const App = () => {
   //           isTokenAutoRefreshEnabled: true,
   //         });
 
-  //         console.log("🚀 App Check Ready!");
+  //         logger.log("🚀 App Check Ready!");
   //       } catch (e) {
-  //         console.error("App Check Setup Error:", e);
+  //         logger.error("App Check Setup Error:", e);
   //       }
   //     };
 
@@ -336,7 +337,7 @@ const App = () => {
 
     if (previousUid && previousUid !== currentUid) {
       cleanupPushTokenForUser(previousUid).catch((error) => {
-        console.log('Push token cleanup error:', error);
+        logger.log('Push token cleanup error:', error);
       });
     }
 

@@ -11,6 +11,8 @@ import { Colors } from '../utilities/AppTheme'
 import { saveBooking } from '../redux/slice/moviesSlice'
 import { buildShowId, reserveSeatsForShow } from '../services/movieService'
 import { Image } from 'react-native'
+import { RAZORPAY_KEY_ID } from '@env';
+import { logger } from '../utilities/logger'
 
 const PaymentScreen = () => {
   const insets = useSafeAreaInsets()
@@ -53,7 +55,7 @@ const PaymentScreen = () => {
       description: `${movie.title} - ${selectedSeats.length} Seat(s)`,
       image: 'https://razorpay.com/assets/razorpay-logo.svg',
       currency: 'INR',
-      key: 'rzp_test_1DP5mmOlF5G5ag',
+      key: route?.params?.razorpayKey ?? RAZORPAY_KEY_ID,
       amount: total * 100,
       name: 'MovieChatBot',
       prefill: {
@@ -97,7 +99,7 @@ const PaymentScreen = () => {
             }
           })
 
-          console.log('Attempting to save booking:', bookingData)
+          logger.log('Attempting to save booking:', bookingData)
           const booking = await dispatch(saveBooking(bookingData)).unwrap()
           setIsProcessing(false)
           navigation.replace('BookingConfirmation' as never, {
@@ -123,7 +125,7 @@ const PaymentScreen = () => {
       })
       .catch((error: any) => {
         setIsProcessing(false)
-        console.log('Razorpay error:', error)
+        logger.log('Razorpay error:', error)
         // Alert.alert(
         //   'Payment Failed',
         //   `${error?.description || 'Unknown error'} (code: ${error?.code || 'n/a'})`

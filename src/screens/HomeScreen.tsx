@@ -28,6 +28,7 @@ import { fetchMovies } from '../redux/slice/moviesSlice'
 import LottieView from 'lottie-react-native'
 import HomeSkeletonLoader from '../components/HomeSkeletonLoader'
 import { sendLocalTestNotification } from '../services/pushNotificationService'
+import { logger } from '../utilities/logger'
 interface Feature {
   id: number
   title: string
@@ -86,8 +87,8 @@ const HomeScreen = () => {
 
   const dispatch = useDispatch();
   const { moviesList, movieFetchLoading, movieStatus } = useSelector((state: any) => state.movies);
-  // console.log('Movie list', moviesList);
-  // console.log('movie status', movieStatus)
+  // logger.log('Movie list', moviesList);
+  // logger.log('movie status', movieStatus)
   const presentLocationSheet = useCallback(() => {
     requestAnimationFrame(async () => {
       isLocationSheetOpen.current = true
@@ -148,7 +149,7 @@ const HomeScreen = () => {
   useEffect(() => {
     if (movieStatus === 'idle') {
       dispatch(fetchMovies());
-      // console.log('Fetching movies');
+      // logger.log('Fetching movies');
 
     }
 
@@ -201,7 +202,7 @@ const HomeScreen = () => {
   //       ToastAndroid.show('Test notification sent', ToastAndroid.SHORT)
   //     }
   //   } catch (error) {
-  //     console.log('Test notification failed:', error)
+  //     logger.log('Test notification failed:', error)
   //     if (Platform.OS === 'android') {
   //       ToastAndroid.show('Failed to send test notification', ToastAndroid.SHORT)
   //     }

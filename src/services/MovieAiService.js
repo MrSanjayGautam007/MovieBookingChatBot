@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GEMINI_API_KEY } from '@env';
 import { getFirestore, collection, query, where, getDocs } from '@react-native-firebase/firestore';
 import { getRemoteConfig, fetchAndActivate, getValue } from '@react-native-firebase/remote-config';
-
+import logger from '../utilities/logger';
 // --- 1. MODULAR DATA LOGIC (Add your logic here) ---
 export const fetchMoviesFromDB = async (genre) => {
     try {
@@ -16,7 +16,7 @@ export const fetchMoviesFromDB = async (genre) => {
             rating: doc.data().rating
         }));
     } catch (error) {
-        console.error("DB Fetch Error:", error);
+        logger.error("DB Fetch Error:", error);
         throw error;
     }
 };
@@ -28,7 +28,7 @@ export const fetchShowtimesFromDB = async (movieTitle) => {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => doc.data());
     } catch (error) {
-        console.error("Showtimes Fetch Error:", error);
+        logger.error("Showtimes Fetch Error:", error);
         throw error;
     }
 };
@@ -47,7 +47,7 @@ export const fetchAllMovies = async () => {
             id: doc.id
         }));
     } catch (error) {
-        console.error("Fetch All Movies Error:", error);
+        logger.error("Fetch All Movies Error:", error);
         throw error;
     }
 };
@@ -116,7 +116,7 @@ export const startAiChat = async () => {
     const config = getRemoteConfig();
     await fetchAndActivate(config);
     const modelName = getValue(config, 'gemini_model_name').asString() || 'gemini-1.5-flash';
-    console.log('Model Name', modelName);
+    logger.log('Model Name', modelName);
 
     const model = genAI.getGenerativeModel({
         model: modelName,

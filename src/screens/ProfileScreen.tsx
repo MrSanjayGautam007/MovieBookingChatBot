@@ -68,7 +68,7 @@ const ProfileScreen = () => {
               style={styles.menuItem}
               onPress={() => {
                 navigation.navigate(item.screen);
-                // console.log('Navigation Clicked', item.screen);
+                // logger.log('Navigation Clicked', item.screen);
               }}
               activeOpacity={0.7}
             >

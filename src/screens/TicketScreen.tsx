@@ -8,7 +8,7 @@ import Feather from 'react-native-vector-icons/Feather'
 import QRCode from 'react-native-qrcode-svg'
 import ViewShot from 'react-native-view-shot'
 import Share from 'react-native-share'
-
+import logger from '../utilities/logger'
 
 import { Responsive } from '../utilities/Responsive'
 import { Colors } from '../utilities/AppTheme'
@@ -29,7 +29,7 @@ const TicketScreen = () => {
     total: initialTotal,
     ticketId: initialTicketId,
   } = params
-  // console.log('params', params);
+  // logger.log('params', params);
 
   const [movie, setMovie] = useState(initialMovie)
   const [theater, setTheater] = useState(initialTheater)
@@ -58,7 +58,7 @@ const TicketScreen = () => {
             setTicketId(booking.ticketId)
           }
         } catch (e) {
-          console.log('Failed to load booking', e)
+          logger.log('Failed to load booking', e)
         } finally {
           setTicketLoaded(false)
         }
@@ -75,7 +75,7 @@ const TicketScreen = () => {
         message: `Movie Ticket - ${movie?.title}`,
       })
     } catch (error) {
-      console.log('Share error:', error)
+      logger.log('Share error:', error)
     }
   }
 
@@ -98,7 +98,7 @@ const TicketScreen = () => {
   //     })
 
   //   } catch (error) {
-  //     console.log('Download error:', error)
+  //     logger.log('Download error:', error)
   //     Alert.alert('Error', 'Failed to save ticket')
   //   }
   // }

@@ -6,6 +6,7 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
 import Feather from 'react-native-vector-icons/Feather'
 import { Responsive } from '../utilities/Responsive'
 import { Colors } from '../utilities/AppTheme'
+import { logger } from '../utilities/logger'
 
 const ContactUsScreen = () => {
   const insets = useSafeAreaInsets()
@@ -18,7 +19,7 @@ const ContactUsScreen = () => {
 
   const handleSubmit = () => {
     // Submit logic here
-    console.log({ name, email, subject, message })
+    logger.log({ name, email, subject, message })
   }
 
   const contactMethods = [
